@@ -4,7 +4,7 @@ Last updated: 2026-06-04
 
 ## Project status
 
-Status: Phase 5 attendance records complete
+Status: Phase 7 teacher dashboard complete
 
 ClassPulse is a Django + PostgreSQL attendance management MVP.
 
@@ -89,9 +89,17 @@ SYSTEM
 * Attendance records with status and recorded-method choices
 * Attendance enrollment and course/session/section relationship validation
 * Attendance record database constraints and Django admin integration
+* Attendance services for manual section/session marking, manual corrections, and
+  transactional missing-record absent marking
+* Teacher dashboard with course list, course detail, session creation, and
+  session detail pages
+* Teacher-only dashboard permissions with course and session ownership checks
+* Session attendance matrix showing active enrolled students and each section's
+  current attendance status
 * Requested Django app structure
 * Basic shared templates and project home page
-* Initial boot, account, course, session, section, and attendance record model tests
+* Initial boot, account, course, session, section, attendance record model, and
+  attendance service and teacher dashboard view tests
 * Setup documentation and `.env.example`
 
 ## Pending feature checklist
@@ -142,21 +150,21 @@ SYSTEM
 
 ### Phase 6 — Attendance services
 
-* [ ] Add `attendance/services.py`
-* [ ] Mark one student for one section
-* [ ] Mark one student for all 3 sections
-* [ ] Update existing record safely
-* [ ] Bulk mark missing records absent
-* [ ] Add service tests
+* [x] Add `attendance/services.py`
+* [x] Mark one student for one section
+* [x] Mark one student for all 3 sections
+* [x] Update existing record safely
+* [x] Bulk mark missing records absent
+* [x] Add service tests
 
 ### Phase 7 — Teacher UI
 
-* [ ] Course list page
-* [ ] Course detail page
-* [ ] Create session page
-* [ ] Session detail page
-* [ ] Permission checks
-* [ ] View tests
+* [x] Course list page
+* [x] Course detail page
+* [x] Create session page
+* [x] Session detail page
+* [x] Permission checks
+* [x] View tests
 
 ### Phase 8 — Manual attendance UI
 
@@ -296,6 +304,10 @@ Implemented URLs:
 ```text
 /
 /admin/
+/courses/
+/courses/<course_id>/
+/courses/<course_id>/sessions/create/
+/attendance/sessions/<session_id>/
 ```
 
 Planned URLs may include:
@@ -304,10 +316,6 @@ Planned URLs may include:
 /accounts/login/
 /accounts/logout/
 
-/courses/
-/courses/<course_id>/
-
-/attendance/sessions/<session_id>/
 /attendance/sessions/<session_id>/manual/
 /attendance/sessions/<session_id>/qr/
 /attendance/scan/<token>/
@@ -319,31 +327,49 @@ Planned URLs may include:
 
 ## Current services
 
-No services implemented yet.
+Implemented attendance services:
+
+```text
+mark_student_for_section
+  validates status, active enrollment, session/course, and section/session
+  creates or updates one manual attendance record
+
+mark_student_for_session
+  validates status, active enrollment, session/course, and the 3-section structure
+  transactionally creates or updates all 3 manual attendance records
+
+bulk_mark_missing_students_absent
+  validates session/course and the 3-section structure
+  transactionally creates SYSTEM/ABSENT records for missing active-enrollment records
+  preserves all existing attendance records
+
+change_attendance_record_manually
+  validates the existing record relationships and new status
+  safely changes the existing record to a manual correction
+```
 
 Planned services:
 
 ```text
-attendance/services.py
 reports/services.py
 ```
 
 ## Current permissions
 
-Role-based view permission checks are not implemented yet.
+Implemented teacher dashboard permissions:
 
-The custom user model now provides ADMIN, TEACHER, and STUDENT roles for future
-permission checks.
+* anonymous users are redirected to login from teacher dashboard pages
+* non-teacher users receive a forbidden response from teacher dashboard pages
+* teachers see only their own courses in the course list
+* teachers receive a not-found response for another teacher's course, session
+  creation page, or session detail page
 
-Course ownership and enrollment roles are validated at the model level.
+Course ownership and enrollment roles remain validated at the model level.
 
-Required permission rules:
+Pending permission rules:
 
-* teachers manage only their own courses
 * students scan only enrolled course QR codes
-* anonymous users cannot access protected pages
-* students cannot access teacher dashboard
-* teachers cannot access another teacher’s sessions or reports
+* teachers access only their own reports
 
 ## Configuration assumptions
 
@@ -400,6 +426,13 @@ Reason:
 
 This is a DIY MVP. Django templates are enough.
 
+### Decision: Filter teacher dashboard objects by ownership
+
+Reason:
+
+Filtering course and session lookups by the signed-in teacher prevents private
+course details from being revealed and keeps permission checks explicit.
+
 ### Decision: Keep account roles on the custom user model
 
 Reason:
@@ -422,6 +455,14 @@ Attendance records keep course, session, and section references for direct
 queries, so model validation ensures the session belongs to the course, the
 section belongs to the session, and the student has an active course enrollment.
 
+### Decision: Keep attendance writes idempotent and transactional
+
+Reason:
+
+Manual section and session marking update an existing student/section record
+instead of creating duplicates. Multi-record session marking and missing-record
+absent marking run in transactions so partial attendance writes are rolled back.
+
 ## Known risks
 
 * QR codes cannot fully prevent cheating.
@@ -439,10 +480,10 @@ Expected command:
 python manage.py test
 ```
 
-Last result on 2026-06-04:
+Last result on 2026-06-04 using `.venv/bin/python manage.py test`:
 
 ```text
-Ran 37 tests in 1.003s
+Ran 59 tests in 1.683s
 OK
 ```
 

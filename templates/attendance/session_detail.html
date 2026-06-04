@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Session {{ session.date|date:"Y-m-d" }} | ClassPulse{% endblock %}
+
+{% block content %}
+<p>
+    <a href="{% url 'courses:course-detail' session.course.pk %}">
+        Back to {{ session.course.code }}
+    </a>
+</p>
+<h1>Session detail</h1>
+<dl>
+    <dt>Course</dt>
+    <dd>{{ session.course.code }} - {{ session.course.title }}</dd>
+    <dt>Date</dt>
+    <dd>{{ session.date|date:"Y-m-d" }}</dd>
+    <dt>Time</dt>
+    <dd>{{ session.start_time }}{% if session.end_time %} to {{ session.end_time }}{% endif %}</dd>
+    <dt>Status</dt>
+    <dd>{{ session.get_status_display }}</dd>
+</dl>
+
+<h2>Attendance</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Student</th>
+            {% for section in sections %}
+                <th>
+                    Section {{ section.section_number }}
+                    <small>({{ section.duration_minutes }} minutes)</small>
+                </th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in attendance_rows %}
+            <tr>
+                <td>{{ row.student.username }}</td>
+                {% for status in row.statuses %}
+                    <td>{{ status }}</td>
+                {% endfor %}
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="4">No active students are enrolled.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

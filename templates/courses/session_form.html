@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Create session | ClassPulse{% endblock %}
+
+{% block content %}
+<p>
+    <a href="{% url 'courses:course-detail' course.pk %}">
+        Back to {{ course.code }}
+    </a>
+</p>
+<h1>Create session</h1>
+<p>{{ course.code }} - {{ course.title }}</p>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Create session</button>
+</form>
+{% endblock %}

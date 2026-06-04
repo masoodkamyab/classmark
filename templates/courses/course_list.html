@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Courses | ClassPulse{% endblock %}
+
+{% block content %}
+<h1>Your courses</h1>
+
+{% if courses %}
+    <table>
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Course</th>
+                <th>Dates</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for course in courses %}
+                <tr>
+                    <td>{{ course.code }}</td>
+                    <td>
+                        <a href="{% url 'courses:course-detail' course.pk %}">
+                            {{ course.title }}
+                        </a>
+                    </td>
+                    <td>{{ course.start_date }} to {{ course.end_date }}</td>
+                    <td>{% if course.is_active %}Active{% else %}Inactive{% endif %}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>You do not have any courses yet.</p>
+{% endif %}
+{% endblock %}

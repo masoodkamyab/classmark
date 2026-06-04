@@ -4,8 +4,73 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}ClassPulse{% endblock %}</title>
+    <style>
+        body {
+            color: #1f2937;
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            margin: 0;
+        }
+        header, main {
+            margin: 0 auto;
+            max-width: 1100px;
+            padding: 1rem;
+        }
+        header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+        nav a, a {
+            color: #1d4ed8;
+        }
+        nav a {
+            margin-right: 1rem;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 0.6rem;
+            text-align: left;
+        }
+        th {
+            background: #f3f4f6;
+        }
+        .button {
+            background: #1d4ed8;
+            border-radius: 0.25rem;
+            color: white;
+            display: inline-block;
+            padding: 0.5rem 0.8rem;
+            text-decoration: none;
+        }
+        .errorlist {
+            color: #b91c1c;
+        }
+        form p label {
+            display: block;
+            font-weight: bold;
+        }
+        input, select {
+            padding: 0.4rem;
+        }
+    </style>
 </head>
 <body>
+    <header>
+        <nav>
+            <a href="{% url 'home' %}">ClassPulse</a>
+            {% if user.is_authenticated and user.role == "TEACHER" %}
+                <a href="{% url 'courses:course-list' %}">Courses</a>
+            {% endif %}
+        </nav>
+        {% if user.is_authenticated %}
+            <span>Signed in as {{ user.username }}</span>
+        {% endif %}
+    </header>
     <main>
         {% block content %}{% endblock %}
     </main>
