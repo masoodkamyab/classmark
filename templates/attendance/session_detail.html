@@ -20,6 +20,25 @@
     <dd>{{ session.get_status_display }}</dd>
 </dl>
 
+{% if session.status == "ACTIVE" %}
+    <p>
+        <a class="button" href="{% url 'attendance:session-qr' session.pk %}">
+            Show QR code
+        </a>
+    </p>
+    <form method="post" action="{% url 'attendance:session-close' session.pk %}">
+        {% csrf_token %}
+        <button class="button" type="submit">Close session</button>
+    </form>
+{% endif %}
+
+<h2>Mark attendance manually</h2>
+<form method="post" action="{% url 'attendance:manual-attendance' session.pk %}">
+    {% csrf_token %}
+    {{ manual_attendance_form.as_p }}
+    <button class="button" type="submit">Update attendance</button>
+</form>
+
 <h2>Attendance</h2>
 <table>
     <thead>

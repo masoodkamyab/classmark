@@ -120,6 +120,25 @@ class TeacherCourseViewTests(TestCase):
         )
         self.assertEqual(session.sections.count(), 3)
 
+    def test_teacher_sees_message_when_session_create_form_is_invalid(self):
+        self.client.force_login(self.teacher)
+
+        response = self.client.post(
+            reverse("courses:session-create", args=[self.course.pk]),
+            {
+                "date": "2026-09-01",
+                "start_time": "09:00",
+                "end_time": "08:30",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Session was not created. Correct the errors below.",
+        )
+        self.assertContains(response, "End time must be after the start time.")
+
     def test_teacher_cannot_create_session_for_another_teachers_course(self):
         self.client.force_login(self.teacher)
 

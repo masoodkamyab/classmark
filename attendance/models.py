@@ -1,7 +1,10 @@
+import secrets
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from courses.models import Course, Enrollment
 
@@ -10,6 +13,11 @@ SESSION_SECTION_COUNT = 3
 FIRST_SECTION_NUMBER = 1
 SECTION_DURATION_MINUTES = 45
 SECTION_COUNTED_HOURS = 1
+ATTENDANCE_TOKEN_BYTES = 32
+
+
+def generate_attendance_token():
+    return secrets.token_urlsafe(ATTENDANCE_TOKEN_BYTES)
 
 
 class AttendanceStatus(models.TextChoices):
@@ -128,6 +136,78 @@ class SessionSection(models.Model):
 
     def __str__(self):
         return f"{self.session} - Section {self.section_number}"
+
+
+class AttendanceToken(models.Model):
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="attendance_tokens",
+    )
+    session = models.ForeignKey(
+        ClassSession,
+        on_delete=models.CASCADE,
+        related_name="attendance_tokens",
+    )
+    section = models.ForeignKey(
+        SessionSection,
+        on_delete=models.CASCADE,
+        related_name="attendance_tokens",
+        blank=True,
+        null=True,
+    )
+    token = models.CharField(
+        max_length=128,
+        unique=True,
+        default=generate_attendance_token,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+
+    def clean(self):
+        super().clean()
+
+        errors = {}
+
+        if (
+            self.course_id
+            and self.session_id
+            and not ClassSession.objects.filter(
+                pk=self.session_id,
+                course_id=self.course_id,
+            ).exists()
+        ):
+            errors["session"] = "Session must belong to the selected course."
+
+        if (
+            self.session_id
+            and self.section_id
+            and not SessionSection.objects.filter(
+                pk=self.section_id,
+                session_id=self.session_id,
+            ).exists()
+        ):
+            errors["section"] = "Section must belong to the selected session."
+
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_valid(self):
+        return (
+            bool(self.pk)
+            and self.is_active
+            and not self.is_expired
+            and self.session.status == ClassSession.Status.ACTIVE
+        )
+
+    def __str__(self):
+        return f"Attendance token for {self.session}"
 
 
 class AttendanceRecord(models.Model):

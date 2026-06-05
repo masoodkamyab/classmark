@@ -1,10 +1,10 @@
 # PROJECT_STATE.md — ClassPulse
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ## Project status
 
-Status: Phase 7 teacher dashboard complete
+Status: Phase 15 polish complete
 
 ClassPulse is a Django + PostgreSQL attendance management MVP.
 
@@ -21,6 +21,7 @@ Test database: SQLite in memory
 Frontend: Django templates
 Authentication: Django custom user model
 Environment loading: python-dotenv
+QR generation: qrcode
 Tests: Django test framework
 ```
 
@@ -96,10 +97,61 @@ SYSTEM
 * Teacher-only dashboard permissions with course and session ownership checks
 * Session attendance matrix showing active enrolled students and each section's
   current attendance status
+* Session-scoped manual attendance form for marking one section or all three
+  sections, with optional notes and success/error messages
+* POST-only manual attendance updates with CSRF protection, active enrollment
+  validation, and teacher ownership checks
+* Temporary attendance tokens linked to a course, session, and optional section
+* Secure random attendance token generation with configurable short-lived expiry
+* Attendance token validity checks for expiry, active state, and active sessions
+* Teacher QR display page for active sessions
+* QR refresh action that creates a new short-lived token and deactivates older
+  tokens for the same session
+* QR images rendered from `/attendance/scan/<token>/` URLs
+* Student QR scan route with login, token, enrollment, expiry, active-session,
+  and duplicate-scan checks
+* QR scans record `PRESENT` or `LATE` attendance from a configurable late
+  threshold without overwriting existing attendance records
+* Student scan confirmation and clear invalid, inactive, expired, unauthorized,
+  and closed-session error pages/messages
+* Teacher session closing action for active sessions
+* Transactional session closing that marks missing active-enrollment section
+  records as `ABSENT` without overwriting existing attendance
+* Idempotent closed-session handling so repeated close attempts do not duplicate
+  attendance records
+* Closed sessions continue to allow teacher manual attendance corrections while
+  rejecting QR scans
+* Report services that calculate present, late, absent, and leave sections from
+  attendance records
+* Report calculations for absence hours, late-equivalent absences, and total
+  absence equivalent using integer math
+* Teacher course report page showing each active student's raw section counts
+  and calculated absence totals
+* Per-student report detail page showing calculated totals and raw attendance
+  records
+* Teacher-only report permissions with course ownership checks
+* Teacher course report summary CSV export with student identity, section counts,
+  absence hours, late-equivalent absences, and total absence equivalent
+* Teacher course detailed attendance CSV export with session, section, student,
+  status, recorded method, and note fields
+* CSV export response, header, permission, and calculated-value tests
+* Idempotent `seed_sample_data` management command that creates one demo teacher,
+  three demo students, a demo course, active enrollments, and one active sample
+  session with three sections
+* README documentation covering project purpose, local setup, environment
+  variables, database setup, tests, sample data, and basic usage flow
+* Light shared template styling for readable pages, messages, forms, tables,
+  and mobile-width layouts
+* Additional permission and error-message tests for QR pages, session closing,
+  report exports, student report detail access, invalid session creation, and
+  sample data creation
+* Clear success/error messages for session creation
+* Polish review found no dead project code that needed removal
 * Requested Django app structure
 * Basic shared templates and project home page
 * Initial boot, account, course, session, section, attendance record model, and
-  attendance service and teacher dashboard view tests
+  attendance service, teacher dashboard, manual attendance view, token, QR
+  display, QR scan, session closing, and report tests
 * Setup documentation and `.env.example`
 
 ## Pending feature checklist
@@ -168,76 +220,76 @@ SYSTEM
 
 ### Phase 8 — Manual attendance UI
 
-* [ ] Manual attendance form
-* [ ] Mark one section
-* [ ] Mark all sections
-* [ ] Optional note field
-* [ ] Messages
-* [ ] Tests
+* [x] Manual attendance form
+* [x] Mark one section
+* [x] Mark all sections
+* [x] Optional note field
+* [x] Messages
+* [x] Tests
 
 ### Phase 9 — QR token system
 
-* [ ] Create `AttendanceToken`
-* [ ] Add secure token generation
-* [ ] Add expiry logic
-* [ ] Add active/inactive logic
-* [ ] Add token tests
+* [x] Create `AttendanceToken`
+* [x] Add secure token generation
+* [x] Add expiry logic
+* [x] Add active/inactive logic
+* [x] Add token tests
 
 ### Phase 10 — Teacher QR display
 
-* [ ] Generate QR for session
-* [ ] Display QR code
-* [ ] Refresh QR token
-* [ ] Deactivate old tokens
-* [ ] Add permission tests
+* [x] Generate QR for session
+* [x] Display QR code
+* [x] Refresh QR token
+* [x] Deactivate old tokens
+* [x] Add permission tests
 
 ### Phase 11 — Student QR scan flow
 
-* [ ] Add `/attendance/scan/<token>/`
-* [ ] Require login
-* [ ] Validate enrollment
-* [ ] Validate token
-* [ ] Reject expired tokens
-* [ ] Reject closed sessions
-* [ ] Record present/late
-* [ ] Add tests
+* [x] Add `/attendance/scan/<token>/`
+* [x] Require login
+* [x] Validate enrollment
+* [x] Validate token
+* [x] Reject expired tokens
+* [x] Reject closed sessions
+* [x] Record present/late
+* [x] Add tests
 
 ### Phase 12 — Session closing
 
-* [ ] Close active session
-* [ ] Fill missing records as ABSENT
-* [ ] Preserve existing records
-* [ ] Reject QR scans after close
-* [ ] Add tests
+* [x] Close active session
+* [x] Fill missing records as ABSENT
+* [x] Preserve existing records
+* [x] Reject QR scans after close
+* [x] Add tests
 
 ### Phase 13 — Reports
 
-* [ ] Add report services
-* [ ] Calculate present sections
-* [ ] Calculate late sections
-* [ ] Calculate absent sections
-* [ ] Calculate leave sections
-* [ ] Calculate absence hours
-* [ ] Calculate late-equivalent absences
-* [ ] Calculate total absence equivalent
-* [ ] Add tests
+* [x] Add report services
+* [x] Calculate present sections
+* [x] Calculate late sections
+* [x] Calculate absent sections
+* [x] Calculate leave sections
+* [x] Calculate absence hours
+* [x] Calculate late-equivalent absences
+* [x] Calculate total absence equivalent
+* [x] Add tests
 
 ### Phase 14 — CSV export
 
-* [ ] Export summary report CSV
-* [ ] Export detailed attendance CSV
-* [ ] Add permission tests
-* [ ] Add CSV content tests
+* [x] Export summary report CSV
+* [x] Export detailed attendance CSV
+* [x] Add permission tests
+* [x] Add CSV content tests
 
 ### Phase 15 — Polish
 
-* [ ] Add sample data command
-* [ ] Improve README
-* [ ] Review permissions
-* [ ] Improve error messages
-* [ ] Improve basic styling
-* [ ] Remove dead code
-* [ ] Run full test suite
+* [x] Add sample data command
+* [x] Improve README
+* [x] Review permissions
+* [x] Improve error messages
+* [x] Improve basic styling
+* [x] Remove dead code
+* [x] Run full test suite
 
 ## Current data model
 
@@ -289,12 +341,17 @@ AttendanceRecord
   recorded_method: MANUAL, QR, or SYSTEM
   recorded_at
   note: optional
-```
 
-Planned models:
-
-```text
 AttendanceToken
+  course
+  session: must belong to course
+  section: optional and must belong to session
+  token: unique secure random value
+  created_at
+  expires_at
+  is_active
+  is_expired: calculated from the timezone-aware current time
+  is_valid: active, unexpired, and linked to an active session
 ```
 
 ## Current URLs
@@ -308,6 +365,26 @@ Implemented URLs:
 /courses/<course_id>/
 /courses/<course_id>/sessions/create/
 /attendance/sessions/<session_id>/
+/attendance/sessions/<session_id>/close/
+/attendance/sessions/<session_id>/manual/
+/attendance/sessions/<session_id>/qr/
+/attendance/scan/<token>/
+/reports/courses/<course_id>/
+/reports/courses/<course_id>/export.csv
+/reports/courses/<course_id>/details.csv
+/reports/courses/<course_id>/students/<student_id>/
+```
+
+## Current management commands
+
+Implemented management commands:
+
+```text
+seed_sample_data
+  creates one sample teacher, three sample students, one sample course, active
+  enrollments, and one active sample session
+  uses the password classpulse123 for sample users
+  is safe to run repeatedly without creating duplicate sample records
 ```
 
 Planned URLs may include:
@@ -315,14 +392,6 @@ Planned URLs may include:
 ```text
 /accounts/login/
 /accounts/logout/
-
-/attendance/sessions/<session_id>/manual/
-/attendance/sessions/<session_id>/qr/
-/attendance/scan/<token>/
-
-/reports/courses/<course_id>/
-/reports/courses/<course_id>/export.csv
-/reports/courses/<course_id>/details.csv
 ```
 
 ## Current services
@@ -343,15 +412,50 @@ bulk_mark_missing_students_absent
   transactionally creates SYSTEM/ABSENT records for missing active-enrollment records
   preserves all existing attendance records
 
+close_session
+  explicitly transitions ACTIVE sessions to CLOSED
+  transactionally fills missing active-enrollment section records as SYSTEM/ABSENT
+  preserves existing records and treats repeated close attempts as a safe no-op
+
 change_attendance_record_manually
   validates the existing record relationships and new status
   safely changes the existing record to a manual correction
+
+create_attendance_token
+  validates course/session and optional section relationships
+  deactivates existing active tokens for the same session
+  creates a secure random token with settings-driven short-lived expiry
+
+build_attendance_scan_url
+  builds the student scan path for an attendance token
+
+build_qr_code_data_url
+  renders a QR PNG data URL from the scan path
+
+create_qr_attendance_from_token
+  validates token existence, active state, expiry, active session, and active
+  student enrollment
+  records QR attendance as PRESENT within the late threshold and LATE afterward
+  records all 3 sections for session-level tokens or the selected section for
+  section-level tokens
+  leaves existing records unchanged so duplicate scans are safely idempotent
 ```
 
-Planned services:
+Implemented report services:
 
 ```text
-reports/services.py
+calculate_attendance_totals
+  calculates report formulas from per-status section counts
+
+get_course_report
+  returns each active enrolled student's section counts, absence hours,
+  late-equivalent absences, and total absence equivalent
+
+get_student_report
+  returns one student's calculated totals and raw attendance records for a course
+
+get_course_attendance_records
+  returns ordered raw attendance records for detailed course CSV export
 ```
 
 ## Current permissions
@@ -363,13 +467,26 @@ Implemented teacher dashboard permissions:
 * teachers see only their own courses in the course list
 * teachers receive a not-found response for another teacher's course, session
   creation page, or session detail page
+* teachers can submit manual attendance only for their own sessions
+* teachers can generate and refresh QR codes only for their own active sessions
+* teachers can close only their own active sessions
+* manual attendance accepts only students with an active enrollment in the
+  session's course and sections belonging to that session
+* anonymous users are redirected to login before QR scanning
+* students can scan QR only for courses where they have an active enrollment
+* invalid, expired, inactive, unauthorized, and closed-session QR scans do not
+  expose private course/session details
+* teachers can view reports only for their own courses
+* teachers can export summary and detailed attendance CSV reports only for their
+  own courses
+* teacher report pages are inaccessible to students
+* teacher CSV export endpoints are inaccessible to students
+* anonymous users are redirected to login before CSV export endpoints
+* students cannot view per-student report detail pages
+* students cannot access teacher QR display pages
+* session closing requires POST and does not close sessions from GET requests
 
 Course ownership and enrollment roles remain validated at the model level.
-
-Pending permission rules:
-
-* students scan only enrolled course QR codes
-* teachers access only their own reports
 
 ## Configuration assumptions
 
@@ -420,6 +537,9 @@ Reason:
 
 The teacher wants to reduce screenshot sharing between students.
 
+Token values use secure randomness and expire after the configurable
+`QR_TOKEN_TTL_SECONDS` interval, which defaults to 30 seconds.
+
 ### Decision: Keep frontend simple
 
 Reason:
@@ -463,6 +583,14 @@ Manual section and session marking update an existing student/section record
 instead of creating duplicates. Multi-record session marking and missing-record
 absent marking run in transactions so partial attendance writes are rolled back.
 
+### Decision: Scope manual attendance forms to the selected session
+
+Reason:
+
+Limiting student and section choices to the selected teacher-owned session keeps
+invalid relationships out of the view while attendance services remain the final
+business-rule validation layer.
+
 ## Known risks
 
 * QR codes cannot fully prevent cheating.
@@ -480,12 +608,23 @@ Expected command:
 python manage.py test
 ```
 
-Last result on 2026-06-04 using `.venv/bin/python manage.py test`:
+Last result on 2026-06-05 using `.venv/bin/python manage.py test`:
 
 ```text
-Ran 59 tests in 1.683s
+Ran 113 tests in 4.155s
 OK
 ```
+
+Migration check on 2026-06-05 using
+`.venv/bin/python manage.py makemigrations --check --dry-run`:
+
+```text
+No changes detected
+```
+
+The migration check emitted a warning because the local PostgreSQL default
+database connection was unavailable in this environment, but the command exited
+successfully and detected no migration changes.
 
 If pytest is added later:
 

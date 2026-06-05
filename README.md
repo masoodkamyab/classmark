@@ -1,13 +1,19 @@
 # ClassPulse
 
-ClassPulse is a Django and PostgreSQL attendance management application.
+ClassPulse is a small Django classroom attendance MVP. It helps a teacher manage
+courses, enroll students, create class sessions, mark attendance for each of the
+3 fixed session sections, show short-lived QR codes, close sessions, and review
+absence reports.
+
+The app is intentionally simple: Django templates, Django forms, PostgreSQL for
+normal development, and Django tests.
 
 ## Requirements
 
 - Python 3.12+
 - PostgreSQL
 
-## Local setup
+## Setup
 
 Create and activate a virtual environment:
 
@@ -17,29 +23,102 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Create a PostgreSQL database and user:
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+For local development, `config.settings.development` reads `.env` automatically.
+Production should provide environment variables directly and use
+`config.settings.production`.
+
+## Environment Variables
+
+Expected local variables:
+
+```text
+SECRET_KEY=replace-with-a-secure-random-value
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+POSTGRES_DB=classpulse
+POSTGRES_USER=classpulse
+POSTGRES_PASSWORD=classpulse
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+
+QR_TOKEN_TTL_SECONDS=30
+LATE_THRESHOLD_MINUTES=5
+```
+
+`QR_TOKEN_TTL_SECONDS` controls how quickly QR codes expire. The default is 30
+seconds. `LATE_THRESHOLD_MINUTES` controls when a QR scan becomes `LATE`
+instead of `PRESENT`.
+
+## Database Setup
+
+Create a local PostgreSQL database and user:
 
 ```sql
 CREATE USER classpulse WITH PASSWORD 'classpulse';
 CREATE DATABASE classpulse OWNER classpulse;
 ```
 
-Copy the example environment file and replace its development values as needed:
-
-```bash
-cp .env.example .env
-```
-
-Apply migrations and start the development server:
+Apply migrations:
 
 ```bash
 python manage.py migrate
+```
+
+Create an admin user if you want to use Django admin:
+
+```bash
+python manage.py createsuperuser
+```
+
+Optional sample data for trying the app locally:
+
+```bash
+python manage.py seed_sample_data
+```
+
+The sample command creates one teacher, three students, one course, active
+enrollments, and one active sample session. It can be run more than once without
+duplicating the sample records.
+
+## Run The App
+
+Start the development server:
+
+```bash
 python manage.py runserver
 ```
 
-The development server loads variables from `.env`. Production deployments
-should provide environment variables directly and use
-`config.settings.production`.
+Open `http://127.0.0.1:8000/`.
+
+Sample login data created by `seed_sample_data`:
+
+```text
+Teacher: sample_teacher
+Students: sample_student_1, sample_student_2, sample_student_3
+Password: classpulse123
+```
+
+## Basic Usage Flow
+
+1. Sign in as a teacher.
+2. Open the course list and select a course.
+3. Create a class session if needed.
+4. Open the session detail page.
+5. Mark attendance manually, or open the QR page for an active session.
+6. Students sign in and scan the QR code while it is valid.
+7. Close the session to mark missing section records as `ABSENT`.
+8. Open the course report to review totals or export CSV files.
+
+Attendance is recorded per section. One session has exactly 3 sections, each
+section counts as 1 attendance hour, and every 3 `LATE` records count as 1
+absence equivalent in reports. `LEAVE` is tracked separately as excused absence.
 
 ## Tests
 
@@ -50,13 +129,19 @@ running PostgreSQL server:
 python manage.py test
 ```
 
-## Project structure
+Check for missing migrations:
+
+```bash
+python manage.py makemigrations --check --dry-run
+```
+
+## Project Structure
 
 ```text
-accounts/    Custom user model and authentication behavior
-attendance/  Sessions, sections, attendance records, and QR flows
+accounts/    Custom user model and teacher-only view decorator
+attendance/  Sessions, sections, attendance records, QR flow, and services
 config/      Project settings, URLs, and deployment entry points
-courses/     Courses and enrollments
-reports/     Attendance reports and exports
+courses/     Courses, enrollments, session form, and sample data command
+reports/     Attendance report services, views, and CSV exports
 templates/   Shared Django templates
 ```

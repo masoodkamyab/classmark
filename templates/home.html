@@ -2,5 +2,9 @@
 
 {% block content %}
 <h1>ClassPulse</h1>
-<p>Attendance management project is ready.</p>
+{% if user.is_authenticated and user.role == "TEACHER" %}
+    <p><a class="button" href="{% url 'courses:course-list' %}">Open courses</a></p>
+{% else %}
+    <p>Classroom attendance for section-based sessions.</p>
+{% endif %}
 {% endblock %}

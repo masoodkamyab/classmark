@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ student.username }} report | ClassPulse{% endblock %}
+
+{% block content %}
+<p>
+    <a href="{% url 'reports:course-report' course.pk %}">
+        Back to attendance report
+    </a>
+</p>
+<h1>Student attendance detail</h1>
+<p>{{ student.username }} in {{ course.code }} - {{ course.title }}</p>
+
+<h2>Totals</h2>
+<table>
+    <tbody>
+        <tr>
+            <th>Present sections</th>
+            <td>{{ report.summary.present_sections }}</td>
+        </tr>
+        <tr>
+            <th>Late sections</th>
+            <td>{{ report.summary.late_sections }}</td>
+        </tr>
+        <tr>
+            <th>Absent sections</th>
+            <td>{{ report.summary.absent_sections }}</td>
+        </tr>
+        <tr>
+            <th>Leave sections</th>
+            <td>{{ report.summary.leave_sections }}</td>
+        </tr>
+        <tr>
+            <th>Absence hours</th>
+            <td>{{ report.summary.absence_hours }}</td>
+        </tr>
+        <tr>
+            <th>Late-equivalent absences</th>
+            <td>{{ report.summary.late_equivalent_absences }}</td>
+        </tr>
+        <tr>
+            <th>Total absence equivalent</th>
+            <td>{{ report.summary.total_absence_equivalent }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Attendance records</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Start time</th>
+            <th>Section</th>
+            <th>Status</th>
+            <th>Method</th>
+            <th>Recorded at</th>
+            <th>Note</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in report.records %}
+            <tr>
+                <td>{{ record.session.date|date:"Y-m-d" }}</td>
+                <td>{{ record.session.start_time }}</td>
+                <td>Section {{ record.section.section_number }}</td>
+                <td>{{ record.get_status_display }}</td>
+                <td>{{ record.get_recorded_method_display }}</td>
+                <td>{{ record.recorded_at }}</td>
+                <td>{{ record.note }}</td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="7">No attendance records have been created.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -5,9 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}ClassPulse{% endblock %}</title>
     <style>
+        :root {
+            --border: #d6d3d1;
+            --ink: #1f2937;
+            --muted: #57534e;
+            --panel: #fafaf9;
+            --primary: #0f766e;
+            --primary-dark: #115e59;
+        }
         body {
-            color: #1f2937;
-            font-family: Arial, sans-serif;
+            background: #ffffff;
+            color: var(--ink);
+            font-family: Arial, Helvetica, sans-serif;
             line-height: 1.5;
             margin: 0;
         }
@@ -18,34 +27,75 @@
         }
         header {
             align-items: center;
+            border-bottom: 1px solid var(--border);
             display: flex;
+            gap: 1rem;
             justify-content: space-between;
         }
         nav a, a {
-            color: #1d4ed8;
+            color: var(--primary-dark);
         }
         nav a {
             margin-right: 1rem;
         }
+        h1, h2 {
+            line-height: 1.2;
+        }
+        h1 {
+            margin-bottom: 0.5rem;
+        }
+        dl {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            margin: 1rem 0;
+            max-width: 42rem;
+        }
+        dt, dd {
+            border-bottom: 1px solid var(--border);
+            margin: 0;
+            padding: 0.6rem 0.75rem;
+        }
+        dt {
+            color: var(--muted);
+            font-weight: bold;
+        }
+        dd:nth-last-child(1),
+        dt:nth-last-child(2) {
+            border-bottom: 0;
+        }
         table {
             border-collapse: collapse;
+            margin: 1rem 0;
             width: 100%;
         }
         th, td {
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--border);
             padding: 0.6rem;
             text-align: left;
+            vertical-align: top;
         }
         th {
-            background: #f3f4f6;
+            background: #f5f5f4;
+            color: #292524;
         }
-        .button {
-            background: #1d4ed8;
+        .button,
+        button {
+            background: var(--primary);
+            border: 1px solid var(--primary);
             border-radius: 0.25rem;
             color: white;
+            cursor: pointer;
             display: inline-block;
+            font: inherit;
             padding: 0.5rem 0.8rem;
             text-decoration: none;
+        }
+        .button:hover,
+        button:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
         }
         .errorlist {
             color: #b91c1c;
@@ -54,8 +104,51 @@
             display: block;
             font-weight: bold;
         }
-        input, select {
+        input, select, textarea {
+            border: 1px solid var(--border);
+            border-radius: 0.2rem;
+            box-sizing: border-box;
+            max-width: 32rem;
             padding: 0.4rem;
+            width: 100%;
+        }
+        .messages {
+            list-style: none;
+            padding: 0;
+        }
+        .messages li {
+            background: #f5f5f4;
+            border-left: 0.25rem solid var(--primary);
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+        }
+        .messages .error {
+            border-left-color: #b91c1c;
+        }
+        .messages .success {
+            border-left-color: #15803d;
+        }
+        .messages .info {
+            border-left-color: #0369a1;
+        }
+        @media (max-width: 700px) {
+            header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            main {
+                overflow-x: auto;
+            }
+            dl {
+                display: block;
+            }
+            dt {
+                border-bottom: 0;
+                padding-bottom: 0.1rem;
+            }
+            dd {
+                padding-top: 0.1rem;
+            }
         }
     </style>
 </head>
@@ -72,6 +165,15 @@
         {% endif %}
     </header>
     <main>
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+                        {{ message }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </body>

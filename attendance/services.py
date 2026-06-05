@@ -1,5 +1,13 @@
+from base64 import b64encode
+from datetime import datetime, timedelta
+from io import BytesIO
+
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
+
+import qrcode
 
 from courses.models import Enrollment
 
@@ -7,6 +15,7 @@ from .models import (
     SESSION_SECTION_COUNT,
     AttendanceRecord,
     AttendanceStatus,
+    AttendanceToken,
     ClassSession,
     SessionSection,
 )
@@ -61,6 +70,136 @@ def _get_session_sections(session):
             {"session": f"Session must have exactly {SESSION_SECTION_COUNT} sections."}
         )
     return sections
+
+
+def _session_start_datetime(session):
+    start_datetime = datetime.combine(session.date, session.start_time)
+    if timezone.is_naive(start_datetime):
+        return timezone.make_aware(start_datetime, timezone.get_current_timezone())
+    return start_datetime
+
+
+def _get_qr_attendance_status(*, session, scanned_at):
+    present_until = _session_start_datetime(session) + timedelta(
+        minutes=settings.LATE_THRESHOLD_MINUTES
+    )
+    if scanned_at <= present_until:
+        return AttendanceRecord.Status.PRESENT
+    return AttendanceRecord.Status.LATE
+
+
+@transaction.atomic
+def create_attendance_token(*, course, session, section=None):
+    """Create a short-lived secure attendance token."""
+    _validate_session(course=course, session=session)
+    if section is not None:
+        _validate_section(session=session, section=section)
+
+    active_tokens = AttendanceToken.objects.select_for_update().filter(
+        session=session,
+        is_active=True,
+    )
+    list(active_tokens)
+    active_tokens.update(is_active=False)
+
+    return AttendanceToken.objects.create(
+        course=course,
+        session=session,
+        section=section,
+        expires_at=timezone.now()
+        + timedelta(seconds=settings.QR_TOKEN_TTL_SECONDS),
+    )
+
+
+def build_attendance_scan_url(token):
+    return f"/attendance/scan/{token.token}/"
+
+
+def build_qr_code_data_url(value):
+    image = qrcode.make(value)
+    output = BytesIO()
+    image.save(output, format="PNG")
+    encoded_image = b64encode(output.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded_image}"
+
+
+@transaction.atomic
+def create_qr_attendance_from_token(*, token_value, student, scanned_at=None):
+    """Create QR attendance records for an enrolled student without overwriting."""
+    try:
+        token = (
+            AttendanceToken.objects.select_for_update()
+            .select_related("course", "session", "section")
+            .get(token=token_value)
+        )
+    except AttendanceToken.DoesNotExist as exc:
+        raise ValidationError(
+            {
+                "token": (
+                    "This QR code is invalid. Please ask your teacher for a new "
+                    "QR code."
+                )
+            }
+        ) from exc
+
+    scanned_at = scanned_at or timezone.now()
+
+    if not token.is_active:
+        raise ValidationError(
+            {
+                "token": (
+                    "This QR code is no longer active. Please ask your teacher "
+                    "for a new QR code."
+                )
+            }
+        )
+
+    if scanned_at >= token.expires_at:
+        raise ValidationError(
+            {
+                "token": (
+                    "This QR code has expired. Please ask your teacher for a new "
+                    "QR code."
+                )
+            }
+        )
+
+    if token.session.status != ClassSession.Status.ACTIVE:
+        raise ValidationError(
+            {"session": "This attendance session is not accepting QR scans."}
+        )
+
+    _validate_enrollment(student=student, course=token.course)
+    sections = [token.section] if token.section else _get_session_sections(
+        token.session
+    )
+    status = _get_qr_attendance_status(session=token.session, scanned_at=scanned_at)
+    records = []
+    created_count = 0
+
+    for section in sections:
+        record, created = AttendanceRecord.objects.select_for_update().get_or_create(
+            student=student,
+            section=section,
+            defaults={
+                "course": token.course,
+                "session": token.session,
+                "status": status,
+                "recorded_by": student,
+                "recorded_method": AttendanceRecord.RecordedMethod.QR,
+            },
+        )
+        records.append(record)
+        if created:
+            created_count += 1
+
+    return {
+        "token": token,
+        "status": status,
+        "records": records,
+        "created_count": created_count,
+        "already_recorded": created_count == 0,
+    }
 
 
 def _mark_attendance(
@@ -175,6 +314,46 @@ def bulk_mark_missing_students_absent(*, course, session, recorded_by=None):
                 created_records.append(record)
 
     return created_records
+
+
+@transaction.atomic
+def close_session(*, session, closed_by=None):
+    """Close an active session and fill missing attendance records."""
+    if not getattr(session, "pk", None):
+        raise ValidationError({"session": "Session must already exist."})
+
+    try:
+        session = (
+            ClassSession.objects.select_for_update()
+            .select_related("course")
+            .get(pk=session.pk)
+        )
+    except ClassSession.DoesNotExist as exc:
+        raise ValidationError({"session": "Session must already exist."}) from exc
+
+    if session.status == ClassSession.Status.CLOSED:
+        return {
+            "session": session,
+            "created_records": [],
+            "already_closed": True,
+        }
+
+    if session.status != ClassSession.Status.ACTIVE:
+        raise ValidationError({"status": "Only active sessions can be closed."})
+
+    created_records = bulk_mark_missing_students_absent(
+        course=session.course,
+        session=session,
+        recorded_by=closed_by,
+    )
+    session.status = ClassSession.Status.CLOSED
+    session.save(update_fields=("status",))
+
+    return {
+        "session": session,
+        "created_records": created_records,
+        "already_closed": False,
+    }
 
 
 @transaction.atomic

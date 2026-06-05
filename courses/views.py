@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from accounts.decorators import teacher_required
@@ -35,7 +36,11 @@ def session_create(request, course_id):
 
     if request.method == "POST" and form.is_valid():
         session = form.save()
+        messages.success(request, "Session created.")
         return redirect("attendance:session-detail", session_id=session.pk)
+
+    if request.method == "POST":
+        messages.error(request, "Session was not created. Correct the errors below.")
 
     return render(
         request,

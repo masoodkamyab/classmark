@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ course.code }} reports | ClassPulse{% endblock %}
+
+{% block content %}
+<p>
+    <a href="{% url 'courses:course-detail' course.pk %}">
+        Back to {{ course.code }}
+    </a>
+</p>
+<h1>Attendance report</h1>
+<p>{{ course.code }} - {{ course.title }}</p>
+<p>
+    <a class="button" href="{% url 'reports:course-report-csv' course.pk %}">
+        Export summary CSV
+    </a>
+    <a class="button" href="{% url 'reports:course-attendance-records-csv' course.pk %}">
+        Export detailed CSV
+    </a>
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Student</th>
+            <th>Present sections</th>
+            <th>Late sections</th>
+            <th>Absent sections</th>
+            <th>Leave sections</th>
+            <th>Absence hours</th>
+            <th>Late-equivalent absences</th>
+            <th>Total absence equivalent</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in report_rows %}
+            <tr>
+                <td>
+                    <a href="{% url 'reports:student-report-detail' course.pk row.student.pk %}">
+                        {{ row.student.username }}
+                    </a>
+                </td>
+                <td>{{ row.present_sections }}</td>
+                <td>{{ row.late_sections }}</td>
+                <td>{{ row.absent_sections }}</td>
+                <td>{{ row.leave_sections }}</td>
+                <td>{{ row.absence_hours }}</td>
+                <td>{{ row.late_equivalent_absences }}</td>
+                <td>{{ row.total_absence_equivalent }}</td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="8">No active students are enrolled.</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

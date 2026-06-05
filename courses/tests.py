@@ -1,9 +1,13 @@
 from datetime import date
+from io import StringIO
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+
+from attendance.models import ClassSession
 
 from .models import Course, Enrollment
 
@@ -135,3 +139,44 @@ class EnrollmentModelTests(TestCase):
             str(enrollment),
             "student enrolled in CS-101 - Introduction to Programming",
         )
+
+
+class SampleDataCommandTests(TestCase):
+    def test_seed_sample_data_creates_demo_teacher_students_course_and_session(self):
+        output = StringIO()
+
+        call_command("seed_sample_data", stdout=output)
+
+        user_model = get_user_model()
+        teacher = user_model.objects.get(username="sample_teacher")
+        students = user_model.objects.filter(username__startswith="sample_student_")
+        course = Course.objects.get(code="DEMO-101", teacher=teacher)
+        session = ClassSession.objects.get(course=course, date=date(2026, 9, 1))
+
+        self.assertEqual(teacher.role, user_model.Role.TEACHER)
+        self.assertEqual(students.count(), 3)
+        self.assertEqual(
+            set(students.values_list("role", flat=True)),
+            {user_model.Role.STUDENT},
+        )
+        self.assertEqual(Enrollment.objects.filter(course=course).count(), 3)
+        self.assertEqual(session.status, ClassSession.Status.ACTIVE)
+        self.assertEqual(session.sections.count(), 3)
+        self.assertIn("Sample data is ready.", output.getvalue())
+
+    def test_seed_sample_data_can_run_more_than_once_without_duplicates(self):
+        call_command("seed_sample_data", stdout=StringIO())
+        call_command("seed_sample_data", stdout=StringIO())
+
+        user_model = get_user_model()
+        teacher = user_model.objects.get(username="sample_teacher")
+        course = Course.objects.get(code="DEMO-101", teacher=teacher)
+
+        self.assertEqual(user_model.objects.filter(username="sample_teacher").count(), 1)
+        self.assertEqual(
+            user_model.objects.filter(username__startswith="sample_student_").count(),
+            3,
+        )
+        self.assertEqual(Course.objects.filter(code="DEMO-101").count(), 1)
+        self.assertEqual(Enrollment.objects.filter(course=course).count(), 3)
+        self.assertEqual(ClassSession.objects.filter(course=course).count(), 1)

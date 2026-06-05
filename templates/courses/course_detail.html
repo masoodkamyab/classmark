@@ -6,6 +6,11 @@
 <p><a href="{% url 'courses:course-list' %}">Back to courses</a></p>
 <h1>{{ course.code }} - {{ course.title }}</h1>
 <p>{{ course.start_date }} to {{ course.end_date }}</p>
+<p>
+    <a class="button" href="{% url 'reports:course-report' course.pk %}">
+        View attendance report
+    </a>
+</p>
 
 <h2>Sessions</h2>
 <p>

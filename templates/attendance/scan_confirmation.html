@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance recorded | ClassPulse{% endblock %}
+
+{% block content %}
+<h1>Attendance recorded</h1>
+<p>{{ message }}</p>
+<dl>
+    <dt>Status</dt>
+    <dd>{{ status|title }}</dd>
+    <dt>Recorded sections</dt>
+    <dd>{{ record_count }}</dd>
+</dl>
+{% endblock %}

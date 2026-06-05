@@ -1,10 +1,11 @@
-from datetime import date, time
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.utils import timezone
 
 from courses.models import Course, Enrollment
 
@@ -13,6 +14,7 @@ from .models import (
     SECTION_DURATION_MINUTES,
     SESSION_SECTION_COUNT,
     AttendanceRecord,
+    AttendanceToken,
     ClassSession,
     SessionSection,
 )
@@ -176,6 +178,108 @@ class SessionSectionModelTests(TestCase):
         self.assertIn(
             "Constraint “session_section_counted_hours_is_1” is violated.",
             context.exception.messages,
+        )
+
+
+class AttendanceTokenModelTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        user_model = get_user_model()
+        teacher = user_model.objects.create_user(
+            username="teacher",
+            role=user_model.Role.TEACHER,
+        )
+        cls.course = Course.objects.create(
+            title="Introduction to Programming",
+            code="CS-101",
+            teacher=teacher,
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 12, 15),
+        )
+        cls.other_course = Course.objects.create(
+            title="Data Structures",
+            code="CS-102",
+            teacher=teacher,
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 12, 15),
+        )
+        cls.session = ClassSession.objects.create(
+            course=cls.course,
+            date=date(2026, 9, 1),
+            start_time=time(9, 0),
+            status=ClassSession.Status.ACTIVE,
+        )
+        cls.other_session = ClassSession.objects.create(
+            course=cls.other_course,
+            date=date(2026, 9, 1),
+            start_time=time(13, 0),
+            status=ClassSession.Status.ACTIVE,
+        )
+
+    def make_token(self, **overrides):
+        values = {
+            "course": self.course,
+            "session": self.session,
+            "expires_at": timezone.now() + timedelta(seconds=30),
+        }
+        values.update(overrides)
+        return AttendanceToken.objects.create(**values)
+
+    def test_expired_token_is_invalid(self):
+        token = self.make_token(expires_at=timezone.now() - timedelta(seconds=1))
+
+        self.assertTrue(token.is_expired)
+        self.assertFalse(token.is_valid)
+
+    def test_inactive_token_is_invalid(self):
+        token = self.make_token(is_active=False)
+
+        self.assertFalse(token.is_expired)
+        self.assertFalse(token.is_valid)
+
+    def test_token_is_valid_only_while_session_is_active(self):
+        token = self.make_token()
+
+        self.assertTrue(token.is_valid)
+
+        self.session.status = ClassSession.Status.CLOSED
+        self.session.save(update_fields=("status",))
+
+        self.assertFalse(token.is_valid)
+
+    def test_unsaved_token_is_invalid(self):
+        token = AttendanceToken(
+            course=self.course,
+            session=self.session,
+            expires_at=timezone.now() + timedelta(seconds=30),
+        )
+
+        self.assertFalse(token.is_valid)
+
+    def test_token_value_must_be_unique(self):
+        token = self.make_token()
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.make_token(token=token.token)
+
+    def test_token_relationships_must_match(self):
+        token = AttendanceToken(
+            course=self.course,
+            session=self.other_session,
+            section=self.session.sections.get(section_number=1),
+            expires_at=timezone.now() + timedelta(seconds=30),
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            token.full_clean()
+
+        self.assertEqual(
+            context.exception.message_dict["session"],
+            ["Session must belong to the selected course."],
+        )
+        self.assertEqual(
+            context.exception.message_dict["section"],
+            ["Section must belong to the selected session."],
         )
 
 

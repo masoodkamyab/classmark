@@ -1,16 +1,24 @@
-from datetime import date, time
+from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from courses.models import Course, Enrollment
 
-from .models import AttendanceRecord, ClassSession
+from .models import (
+    ATTENDANCE_TOKEN_BYTES,
+    AttendanceRecord,
+    AttendanceToken,
+    ClassSession,
+)
 from .services import (
     bulk_mark_missing_students_absent,
     change_attendance_record_manually,
+    close_session,
+    create_attendance_token,
     mark_student_for_section,
     mark_student_for_session,
 )
@@ -83,6 +91,62 @@ class AttendanceServiceTests(TestCase):
         self.assertEqual(record.recorded_by, self.teacher)
         self.assertEqual(record.recorded_method, AttendanceRecord.RecordedMethod.MANUAL)
         self.assertEqual(record.note, "Marked during roll call.")
+
+    @override_settings(QR_TOKEN_TTL_SECONDS=15)
+    def test_create_attendance_token_uses_secure_configured_expiry(self):
+        before_creation = timezone.now()
+
+        with patch(
+            "attendance.models.secrets.token_urlsafe",
+            return_value="secure-random-token",
+        ) as token_urlsafe:
+            token = create_attendance_token(
+                course=self.course,
+                session=self.session,
+            )
+
+        token_urlsafe.assert_called_once_with(ATTENDANCE_TOKEN_BYTES)
+        self.assertEqual(token.token, "secure-random-token")
+        self.assertEqual(token.course, self.course)
+        self.assertEqual(token.session, self.session)
+        self.assertIsNone(token.section)
+        self.assertTrue(token.is_active)
+        self.assertTrue(timezone.is_aware(token.created_at))
+        self.assertTrue(timezone.is_aware(token.expires_at))
+        self.assertGreaterEqual(
+            token.expires_at,
+            before_creation + timedelta(seconds=15),
+        )
+        self.assertLessEqual(
+            token.expires_at,
+            timezone.now() + timedelta(seconds=15),
+        )
+
+    def test_create_attendance_token_accepts_session_section(self):
+        token = create_attendance_token(
+            course=self.course,
+            session=self.session,
+            section=self.section,
+        )
+
+        self.assertEqual(token.section, self.section)
+        self.assertEqual(AttendanceToken.objects.count(), 1)
+
+    def test_create_attendance_token_deactivates_existing_session_tokens(self):
+        first_token = create_attendance_token(
+            course=self.course,
+            session=self.session,
+        )
+
+        second_token = create_attendance_token(
+            course=self.course,
+            session=self.session,
+        )
+
+        first_token.refresh_from_db()
+        second_token.refresh_from_db()
+        self.assertFalse(first_token.is_active)
+        self.assertTrue(second_token.is_active)
 
     def test_mark_student_for_section_updates_existing_record(self):
         existing_record = AttendanceRecord.objects.create(
@@ -268,6 +332,86 @@ class AttendanceServiceTests(TestCase):
                     session=self.session,
                 )
 
+        self.assertFalse(AttendanceRecord.objects.exists())
+
+    def test_close_session_creates_missing_absences_and_is_repeat_safe(self):
+        self.session.status = ClassSession.Status.ACTIVE
+        self.session.save(update_fields=("status",))
+
+        result = close_session(session=self.session, closed_by=self.teacher)
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, ClassSession.Status.CLOSED)
+        self.assertFalse(result["already_closed"])
+        self.assertEqual(len(result["created_records"]), 6)
+        self.assertEqual(AttendanceRecord.objects.count(), 6)
+        self.assertEqual(
+            AttendanceRecord.objects.filter(
+                status=AttendanceRecord.Status.ABSENT,
+                recorded_method=AttendanceRecord.RecordedMethod.SYSTEM,
+                recorded_by=self.teacher,
+            ).count(),
+            6,
+        )
+
+        second_result = close_session(session=self.session, closed_by=self.teacher)
+
+        self.assertTrue(second_result["already_closed"])
+        self.assertEqual(second_result["created_records"], [])
+        self.assertEqual(AttendanceRecord.objects.count(), 6)
+
+    def test_close_session_preserves_existing_present_late_and_leave_records(self):
+        self.session.status = ClassSession.Status.ACTIVE
+        self.session.save(update_fields=("status",))
+        sections = list(self.session.sections.order_by("section_number"))
+        existing_statuses = [
+            AttendanceRecord.Status.PRESENT,
+            AttendanceRecord.Status.LATE,
+            AttendanceRecord.Status.LEAVE,
+        ]
+        for section, status in zip(sections, existing_statuses):
+            AttendanceRecord.objects.create(
+                student=self.student,
+                course=self.course,
+                session=self.session,
+                section=section,
+                status=status,
+                recorded_by=self.teacher,
+                recorded_method=AttendanceRecord.RecordedMethod.MANUAL,
+            )
+
+        result = close_session(session=self.session, closed_by=self.teacher)
+
+        self.assertEqual(len(result["created_records"]), 3)
+        self.assertEqual(
+            list(
+                AttendanceRecord.objects.filter(student=self.student)
+                .order_by("section__section_number")
+                .values_list("status", "recorded_method")
+            ),
+            [
+                (
+                    AttendanceRecord.Status.PRESENT,
+                    AttendanceRecord.RecordedMethod.MANUAL,
+                ),
+                (
+                    AttendanceRecord.Status.LATE,
+                    AttendanceRecord.RecordedMethod.MANUAL,
+                ),
+                (
+                    AttendanceRecord.Status.LEAVE,
+                    AttendanceRecord.RecordedMethod.MANUAL,
+                ),
+            ],
+        )
+
+    def test_close_session_rejects_non_active_session(self):
+        with self.assertRaises(ValidationError) as context:
+            close_session(session=self.session, closed_by=self.teacher)
+
+        self.assertIn("status", context.exception.message_dict)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, ClassSession.Status.DRAFT)
         self.assertFalse(AttendanceRecord.objects.exists())
 
     def test_change_attendance_record_manually_updates_existing_record(self):
